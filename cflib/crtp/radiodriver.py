@@ -38,6 +38,10 @@ import re
 import struct
 import sys
 import threading
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad, pad
+import json
+from base64 import b64decode
 
 import cflib.drivers.crazyradio as crazyradio
 from .crtpstack import CRTPPacket
@@ -62,6 +66,8 @@ _nr_of_arc_retries = 3
 DEFAULT_ADDR_A = [0xe7, 0xe7, 0xe7, 0xe7, 0xe7]
 DEFAULT_ADDR = 0xE7E7E7E7E7
 
+key = bytes.fromhex('c06fa40f73a407e73bbc785f873ef82c')
+cipher = AES.new(key, AES.MODE_CBC)
 
 class _SharedRadio():
     """ Manages access to one shared radio
@@ -237,23 +243,32 @@ class RadioDriver(CRTPDriver):
         """
         if time == 0:
             try:
-                return self.in_queue.get(False)
+                packet = self.in_queue.get(False)
             except queue.Empty:
                 return None
         elif time < 0:
             try:
-                return self.in_queue.get(True)
+                packet = self.in_queue.get(True)
             except queue.Empty:
                 return None
         else:
             try:
-                return self.in_queue.get(True, time)
+                packet = self.in_queue.get(True, time)
             except queue.Empty:
                 return None
+        print(packet)
+        try:
+            plain = unpad(cipher.decrypt(packet),AES.block_size)
+        except:
+            print("Could not decrypt packet")
+        return plain
+
 
     def send_packet(self, pk):
         """ Send the packet pk though the link """
         try:
+            cipher = AES.new(key, AES.MODE_CBC)
+            pk = cipher.encrypt(pad(pk,AES.block_size))
             self.out_queue.put(pk, True, 2)
         except queue.Full:
             if self.link_error_callback:
