@@ -69,6 +69,7 @@ DEFAULT_ADDR = 0xE7E7E7E7E7
 key = bytes.fromhex('c06fa40f73a407e73bbc785f873ef82c')
 cipher = AES.new(key, AES.MODE_CBC)
 
+
 class _SharedRadio():
     """ Manages access to one shared radio
     """
@@ -256,19 +257,17 @@ class RadioDriver(CRTPDriver):
                 packet = self.in_queue.get(True, time)
             except queue.Empty:
                 return None
-        print(packet)
+
         try:
-            plain = unpad(cipher.decrypt(packet),AES.block_size)
+            packet.data = unpad(cipher.decrypt(packet.data),AES.block_size)
         except:
             print("Could not decrypt packet")
-        return plain
-
+        return packet
 
     def send_packet(self, pk):
         """ Send the packet pk though the link """
         try:
-            cipher = AES.new(key, AES.MODE_CBC)
-            pk = cipher.encrypt(pad(pk,AES.block_size))
+            pk.data = cipher.encrypt(pad(pk.data,AES.block_size))
             self.out_queue.put(pk, True, 2)
         except queue.Full:
             if self.link_error_callback:
